@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>データベースの仕組み学習ラボ</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        db: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0284c7',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .active-tab {
+            border-bottom: 3px solid #0284c7;
+            color: #0284c7;
+            font-weight: 600;
+        }
+        .code-highlight {
+            background-color: #1e293b;
+            color: #f8fafc;
+        }
+        @keyframes pulse-highlight {
+            0%, 100% { background-color: rgba(59, 130, 246, 0.1); }
+            50% { background-color: rgba(59, 130, 246, 0.4); }
+        }
+        .scanning {
+            animation: pulse-highlight 0.6s infinite;
+        }
+        .found-node {
+            background-color: rgba(34, 197, 94, 0.3) !important;
+            border-color: #22c55e !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans">
+
+    <!-- Header -->
+    <header class="bg-slate-900 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-sky-500 rounded-lg text-white">
+                    <i class="fa-solid fa-database text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wide">Database Interactive Lab</h1>
+                    <p class="text-xs text-slate-400">視覚的に学べるデータベースの仕組みと基本概念</p>
+                </div>
+            </div>
+            
+            <!-- Navigation Tabs -->
+            <nav class="flex space-x-1 sm:space-x-2 bg-slate-800 p-1.5 rounded-xl border border-slate-700 text-xs sm:text-sm overflow-x-auto max-w-full">
+                <button onclick="switchTab('basics')" id="tab-basics" class="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition flex items-center gap-1.5 whitespace-nowrap">
+                    <i class="fa-solid fa-table-cells"></i> 1. テーブル構造
+                </button>
+                <button onclick="switchTab('sql')" id="tab-sql" class="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition flex items-center gap-1.5 whitespace-nowrap">
+                    <i class="fa-solid fa-code"></i> 2. SQL操作
+                </button>
+                <button onclick="switchTab('index')" id="tab-index" class="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition flex items-center gap-1.5 whitespace-nowrap">
+                    <i class="fa-solid fa-bolt"></i> 3. インデックス検索
+                </button>
+                <button onclick="switchTab('transaction')" id="tab-transaction" class="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition flex items-center gap-1.5 whitespace-nowrap">
+                    <i class="fa-solid fa-rotate-left"></i> 4. トランザクション
+                </button>
+                <button onclick="switchTab('quiz')" id="tab-quiz" class="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition flex items-center gap-1.5 whitespace-nowrap">
+                    <i class="fa-solid fa-graduation-cap"></i> 5. 確認テスト
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full">
+
+        <!-- ==================== SECTION 1: BASICS (Tables & RDBMS) ==================== -->
+        <section id="sec-basics" class="space-y-6">
+            <!-- Concept Intro Card -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="text-xl font-bold text-slate-900 mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-lightbulb text-amber-500"></i> リレーショナルデータベース（RDBMS）とは？
+                </h2>
+                <p class="text-slate-600 leading-relaxed text-sm sm:text-base">
+                    データを<strong>「行（レコード）」</strong>と<strong>「列（カラム）」</strong>で構成された<strong>「テーブル（表）」</strong>の形式で管理する仕組みです。
+                    複数のテーブル同士を<strong>「主キー（PK）」</strong>と<strong>「外部キー（FK）」</strong>で関連付ける（リレーション）ことで、重複のない効率的なデータ管理が実現できます。
+                </p>
+            </div>
+
+            <!-- Visual Tables Demo -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Users Table -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-users text-sky-600"></i>
+                            <h3 class="font-bold text-slate-800">users テーブル (顧客情報)</h3>
+                        </div>
+                        <span class="text-xs bg-sky-100 text-sky-800 px-2.5 py-1 rounded-full font-medium">親テーブル</span>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs sm:text-sm border-collapse">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-700 border-b border-slate-200">
+                                    <th class="p-2.5 font-semibold text-sky-700"><i class="fa-solid fa-key text-xs mr-1"></i>id (PK)</th>
+                                    <th class="p-2.5 font-semibold">name (名前)</th>
+                                    <th class="p-2.5 font-semibold">age (年齢)</th>
+                                    <th class="p-2.5 font-semibold">city (都市)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="basics-users-tbody" class="divide-y divide-slate-100">
+                                <!-- Dynamic JS Population -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-3 text-xs text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                        <i class="fa-solid fa-info-circle text-sky-600"></i> <strong>PK (Primary Key / 主キー):</strong> 各行を一意に識別するための重複しないID。
+                    </div>
+                </div>
+
+                <!-- Orders Table -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-cart-shopping text-emerald-600"></i>
+                            <h3 class="font-bold text-slate-800">orders テーブル (注文履歴)</h3>
+                        </div>
+                        <span class="text-xs bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full font-medium">子テーブル</span>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs sm:text-sm border-collapse">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-700 border-b border-slate-200">
+                                    <th class="p-2.5 font-semibold text-emerald-700"><i class="fa-solid fa-key text-xs mr-1"></i>order_id (PK)</th>
+                                    <th class="p-2.5 font-semibold text-sky-700"><i class="fa-solid fa-link text-xs mr-1"></i>user_id (FK)</th>
+                                    <th class="p-2.5 font-semibold">item (商品名)</th>
+                                    <th class="p-2.5 font-semibold">price (金額)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="basics-orders-tbody" class="divide-y divide-slate-100">
+                                <!-- Dynamic JS Population -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-3 text-xs text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                        <i class="fa-solid fa-info-circle text-emerald-600"></i> <strong>FK (Foreign Key / 外部キー):</strong> 他のテーブルのPKを参照するID。これによりデータ同士が紐づきます。
+                    </div>
+                </div>
+            </div>
+
+            <!-- Interactivity Interactive Explorer -->
+            <div class="bg-gradient-to-r from-sky-900 to-slate-900 text-white p-6 rounded-2xl shadow-md">
+                <h3 class="font-bold text-lg mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-mouse-pointer text-sky-400"></i> データリレーションの体験
+                </h3>
+                <p class="text-xs sm:text-sm text-slate-300 mb-4">
+                    下のユーザーを選択すると、そのユーザーがどの注文に関連しているか（リレーション）が強調表示されます。
+                </p>
+                <div id="user-select-buttons" class="flex flex-wrap gap-2">
+                    <!-- Buttons built by JS -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== SECTION 2: SQL EXECUTION ==================== -->
+        <section id="sec-sql" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="text-xl font-bold text-slate-900 mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-terminal text-sky-600"></i> SQL（Structured Query Language）シミュレータ
+                </h2>
+                <p class="text-slate-600 text-sm sm:text-base">
+                    SQLはデータベースに命令を出すための言語です。ボタンを押すか、直接クエリを入力して実行結果を確認してみましょう。
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Left: SQL Control Console -->
+                <div class="lg:col-span-5 space-y-4">
+                    <div class="bg-slate-900 text-slate-100 p-5 rounded-2xl shadow-sm border border-slate-800">
+                        <label class="block text-xs text-slate-400 font-mono mb-2 flex justify-between items-center">
+                            <span>SQL EDITOR</span>
+                            <span class="text-emerald-400 text-[10px]"><i class="fa-solid fa-circle text-[8px] animate-pulse"></i> Ready</span>
+                        </label>
+                        <textarea id="sql-input" rows="4" class="w-full bg-slate-950 text-green-400 font-mono text-sm p-3 rounded-xl border border-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500" placeholder="SQL文を入力..."></textarea>
+                        
+                        <div class="flex gap-2 mt-3">
+                            <button onclick="executeSQL()" class="flex-1 bg-sky-600 hover:bg-sky-500 text-white font-medium py-2 px-4 rounded-xl transition text-sm flex items-center justify-center gap-2 shadow-sm">
+                                <i class="fa-solid fa-play"></i> 実行する
+                            </button>
+                            <button onclick="resetSQLData()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-2 px-3 rounded-xl transition text-sm">
+                                <i class="fa-solid fa-arrow-rotate-left"></i> リセット
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Preset Query Template Buttons -->
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">サンプルSQLを選択</h4>
+                        <div class="space-y-2">
+                            <button onclick="setSQL('SELECT * FROM users;')" class="w-full text-left p-2.5 rounded-lg bg-slate-50 hover:bg-sky-50 text-xs font-mono border border-slate-200 transition text-slate-700 hover:text-sky-700 flex justify-between items-center">
+                                <span>SELECT * FROM users;</span>
+                                <span class="text-[10px] text-slate-400 font-sans">全取得</span>
+                            </button>
+                            <button onclick="setSQL('SELECT * FROM users WHERE age >= 30;')" class="w-full text-left p-2.5 rounded-lg bg-slate-50 hover:bg-sky-50 text-xs font-mono border border-slate-200 transition text-slate-700 hover:text-sky-700 flex justify-between items-center">
+                                <span>SELECT * FROM users WHERE age >= 30;</span>
+                                <span class="text-[10px] text-slate-400 font-sans">条件絞り込み</span>
+                            </button>
+                            <button onclick="setSQL('INSERT INTO users VALUES (5, \'健太\', 22, \'福岡\');')" class="w-full text-left p-2.5 rounded-lg bg-slate-50 hover:bg-sky-50 text-xs font-mono border border-slate-200 transition text-slate-700 hover:text-sky-700 flex justify-between items-center">
+                                <span>INSERT INTO users VALUES (5, '健太', 22, '福岡');</span>
+                                <span class="text-[10px] text-slate-400 font-sans">追加</span>
+                            </button>
+                            <button onclick="setSQL('UPDATE users SET city = \'東京\' WHERE id = 2;')" class="w-full text-left p-2.5 rounded-lg bg-slate-50 hover:bg-sky-50 text-xs font-mono border border-slate-200 transition text-slate-700 hover:text-sky-700 flex justify-between items-center">
+                                <span>UPDATE users SET city = '東京' WHERE id = 2;</span>
+                                <span class="text-[10px] text-slate-400 font-sans">更新</span>
+                            </button>
+                            <button onclick="setSQL('DELETE FROM users WHERE id = 4;')" class="w-full text-left p-2.5 rounded-lg bg-slate-50 hover:bg-sky-50 text-xs font-mono border border-slate-200 transition text-slate-700 hover:text-sky-700 flex justify-between items-center">
+                                <span>DELETE FROM users WHERE id = 4;</span>
+                                <span class="text-[10px] text-slate-400 font-sans">削除</span>
+                            </button>
+                            <button onclick="setSQL('SELECT users.name, orders.item, orders.price FROM users JOIN orders ON users.id = orders.user_id;')" class="w-full text-left p-2.5 rounded-lg bg-slate-50 hover:bg-sky-50 text-xs font-mono border border-slate-200 transition text-slate-700 hover:text-sky-700 flex justify-between items-center">
+                                <span>SELECT ... JOIN orders ON users.id = orders.user_id;</span>
+                                <span class="text-[10px] text-slate-400 font-sans">結合 (JOIN)</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Output Result -->
+                <div class="lg:col-span-7 space-y-4">
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 min-h-[350px] flex flex-col">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                <i class="fa-solid fa-table text-sky-600"></i> クエリ実行結果 / テーブル状態
+                            </h3>
+                            <span id="sql-status-badge" class="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-medium">結果待機中</span>
+                        </div>
+
+                        <!-- Feedback Message -->
+                        <div id="sql-message" class="mb-4 p-3 rounded-xl text-xs sm:text-sm bg-slate-100 text-slate-700 flex items-center gap-2 hidden">
+                            <i id="sql-message-icon" class="fa-solid fa-info-circle"></i>
+                            <span id="sql-message-text"></span>
+                        </div>
+
+                        <!-- Result Display Table -->
+                        <div class="overflow-x-auto flex-grow">
+                            <table class="w-full text-left text-xs sm:text-sm border-collapse">
+                                <thead id="sql-result-thead" class="bg-slate-100 text-slate-700 border-b border-slate-200">
+                                    <!-- Dynamic -->
+                                </thead>
+                                <tbody id="sql-result-tbody" class="divide-y divide-slate-100">
+                                    <!-- Dynamic -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== SECTION 3: INDEX VISUALIZER ==================== -->
+        <section id="sec-index" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="text-xl font-bold text-slate-900 mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-bolt text-amber-500"></i> インデックス（Index）による高速検索の仕組み
+                </h2>
+                <p class="text-slate-600 text-sm sm:text-base">
+                    データ量が増えると、上から1行ずつ探す**「フルスキャン（全件検索）」**は時間がかかります。
+                    **「インデックス（B-Treeなどの索引）」**を使うと、辞書を引くように目的のデータを爆速で探せます。
+                </p>
+            </div>
+
+            <!-- Interactive Search Visualizer Control -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <div class="flex items-center gap-3 w-full sm:w-auto">
+                        <label class="text-sm font-bold text-slate-700 whitespace-nowrap">検索したいID:</label>
+                        <select id="index-search-id" class="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500">
+                            <!-- Populated 1 to 15 -->
+                        </select>
+                    </div>
+                    
+                    <div class="flex gap-3 w-full sm:w-auto">
+                        <button onclick="startSearch('full')" id="btn-full-scan" class="flex-1 sm:flex-initial bg-slate-700 hover:bg-slate-800 text-white font-medium px-4 py-2 rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-magnifying-glass"></i> フルスキャンで検索
+                        </button>
+                        <button onclick="startSearch('index')" id="btn-index-scan" class="flex-1 sm:flex-initial bg-amber-500 hover:bg-amber-600 text-white font-medium px-4 py-2 rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-1.5 shadow-sm">
+                            <i class="fa-solid fa-bolt"></i> インデックス検索 (B-Tree)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats Comparison Bar -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-slate-100 p-4 rounded-xl text-center border border-slate-200">
+                        <span class="text-xs text-slate-500 font-medium block">フルスキャンの確認ステップ数</span>
+                        <span id="count-full" class="text-2xl sm:text-3xl font-extrabold text-slate-700">0</span>
+                        <span class="text-xs text-slate-400 block mt-1">最悪時間複雑度: O(N)</span>
+                    </div>
+                    <div class="bg-amber-50 p-4 rounded-xl text-center border border-amber-200">
+                        <span class="text-xs text-amber-700 font-medium block">インデックス検索の確認ステップ数</span>
+                        <span id="count-index" class="text-2xl sm:text-3xl font-extrabold text-amber-600">0</span>
+                        <span class="text-xs text-amber-600/70 block mt-1">時間複雑度: O(log N)</span>
+                    </div>
+                </div>
+
+                <!-- Visual Node Display Area -->
+                <div>
+                    <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">データストレージ構造の可視化 (ID 1 〜 15)</h4>
+                    
+                    <!-- B-Tree Tree Structure (Index Mode) -->
+                    <div id="index-tree-view" class="hidden mb-6 p-4 bg-slate-900 rounded-2xl text-white space-y-4 overflow-x-auto">
+                        <div class="text-xs text-amber-400 font-mono text-center mb-1">【 B-Tree 索引ツリー構造 】</div>
+                        <!-- Root Node -->
+                        <div class="flex justify-center">
+                            <div id="tree-node-8" class="border-2 border-slate-700 bg-slate-800 px-4 py-1.5 rounded-lg text-xs font-mono transition-all">ID: 8</div>
+                        </div>
+                        <!-- Branch Nodes -->
+                        <div class="flex justify-around text-xs font-mono">
+                            <div id="tree-node-4" class="border-2 border-slate-700 bg-slate-800 px-3 py-1 rounded-lg transition-all">ID: 4</div>
+                            <div id="tree-node-12" class="border-2 border-slate-700 bg-slate-800 px-3 py-1 rounded-lg transition-all">ID: 12</div>
+                        </div>
+                        <!-- Leaf Nodes Level Preview -->
+                        <div class="flex justify-between text-[11px] font-mono opacity-60 px-2 text-slate-400">
+                            <span>1, 2, 3</span>
+                            <span>5, 6, 7</span>
+                            <span>9, 10, 11</span>
+                            <span>13, 14, 15</span>
+                        </div>
+                    </div>
+
+                    <!-- Linear Table Rows (Data Blocks) -->
+                    <div id="data-blocks-grid" class="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-8 lg:grid-cols-15 gap-2">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== SECTION 4: TRANSACTIONS & ACID ==================== -->
+        <section id="sec-transaction" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="text-xl font-bold text-slate-900 mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-rotate-left text-indigo-600"></i> トランザクション & ACID特性
+                </h2>
+                <p class="text-slate-600 text-sm sm:text-base">
+                    複数の処理を**「すべて成功させるか、すべて無効にするか（オール・オア・ナッシング）」**の単位として扱う仕組みが<strong>トランザクション</strong>です。銀行口座の送金処理などで不可欠です。
+                </p>
+            </div>
+
+            <!-- Interactive Bank Transfer Simulation -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+                <h3 class="font-bold text-slate-800 text-base flex items-center gap-2">
+                    <i class="fa-solid fa-money-bill-transfer text-emerald-600"></i> 銀行送金シミュレーション (AさんからBさんへ 3,000円送金)
+                </h3>
+
+                <!-- Accounts Visual -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex justify-between items-center">
+                        <div>
+                            <span class="text-xs text-slate-500 font-medium block">口座 A（送金元）</span>
+                            <span class="text-lg font-bold text-slate-800">山田 太郎</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-xs text-slate-400 block">残高</span>
+                            <span id="account-a-balance" class="text-2xl font-extrabold text-sky-600">10,000 円</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex justify-between items-center">
+                        <div>
+                            <span class="text-xs text-slate-500 font-medium block">口座 B（受取先）</span>
+                            <span class="text-lg font-bold text-slate-800">佐藤 花子</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-xs text-slate-400 block">残高</span>
+                            <span id="account-b-balance" class="text-2xl font-extrabold text-emerald-600">5,000 円</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step Controls -->
+                <div class="bg-slate-900 p-5 rounded-2xl text-slate-100 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs text-slate-400 font-mono">TRANSACTION LOG / STEPS</span>
+                        <span id="tx-status-tag" class="text-xs bg-slate-800 text-slate-300 px-2.5 py-1 rounded-full">未開始</span>
+                    </div>
+
+                    <div id="tx-log" class="font-mono text-xs text-emerald-400 space-y-1 bg-slate-950 p-3 rounded-xl border border-slate-800 h-28 overflow-y-auto">
+                        <div class="text-slate-500">// トランザクションを開始してください...</div>
+                    </div>
+
+                    <div class="flex flex-wrap gap-2 pt-2">
+                        <button onclick="txBegin()" id="btn-tx-begin" class="bg-sky-600 hover:bg-sky-500 text-white text-xs sm:text-sm font-medium px-4 py-2 rounded-xl transition">
+                            1. BEGIN (開始)
+                        </button>
+                        <button onclick="txStep1()" id="btn-tx-step1" disabled class="bg-slate-700 opacity-50 text-white text-xs sm:text-sm font-medium px-4 py-2 rounded-xl transition">
+                            2. Aから3000円引き落とし
+                        </button>
+                        <button onclick="txStep2()" id="btn-tx-step2" disabled class="bg-slate-700 opacity-50 text-white text-xs sm:text-sm font-medium px-4 py-2 rounded-xl transition">
+                            3. Bに3000円振込み
+                        </button>
+                        <button onclick="txCommit()" id="btn-tx-commit" disabled class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-medium px-4 py-2 rounded-xl transition">
+                            COMMIT (確定)
+                        </button>
+                        <button onclick="txRollback()" id="btn-tx-rollback" disabled class="bg-rose-600 hover:bg-rose-500 text-white text-xs sm:text-sm font-medium px-4 py-2 rounded-xl transition">
+                            ROLLBACK (取消)
+                        </button>
+                        <button onclick="txReset()" id="btn-tx-reset" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs sm:text-sm font-medium px-4 py-2 rounded-xl transition border border-slate-700">
+                            <i class="fa-solid fa-rotate"></i> 初期状態に戻す
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ACID Explanation Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+                    <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-sky-600 text-sm block mb-1">Atomicity (原子性)</span>
+                        <p class="text-xs text-slate-600">処理が「全て実行される」か「全く実行されない」かのどちらか。中途半端な状態を残さない。</p>
+                    </div>
+                    <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-emerald-600 text-sm block mb-1">Consistency (一貫性)</span>
+                        <p class="text-xs text-slate-600">データが不整合を起こさないルールを守る（例: 残高マイナス不可などの制約）。</p>
+                    </div>
+                    <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-indigo-600 text-sm block mb-1">Isolation (独立性)</span>
+                        <p class="text-xs text-slate-600">同時実行される複数の処理が互いに干渉しないように隔離される。</p>
+                    </div>
+                    <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-amber-600 text-sm block mb-1">Durability (永続性)</span>
+                        <p class="text-xs text-slate-600">COMMITが完了した変更結果は、システム障害が起きても消えず永続化される。</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== SECTION 5: QUIZ ==================== -->
+        <section id="sec-quiz" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="text-xl font-bold text-slate-900 mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-graduation-cap text-sky-600"></i> データベース理解度チェッククイズ
+                </h2>
+                <p class="text-slate-600 text-sm sm:text-base">
+                    学んだ知識を確認してみましょう！全5問の選択式クイズです。
+                </p>
+            </div>
+
+            <div id="quiz-container" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+                <!-- Dynamic Quiz Content -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900 text-slate-400 text-xs py-6 border-t border-slate-800 mt-12">
+        <div class="max-w-7xl mx-auto px-4 text-center space-y-2">
+            <p>Database Interactive Learning App - データベースの仕組みを直感的に学ぶ</p>
+            <p class="text-slate-600">RDBMS / SQL / B-Tree Index / ACID Transactions</p>
+        </div>
+    </footer>
+
+    <!-- Application Logic Script -->
+    <script>
+        // ================= Global State Data =================
+        const initialUsers = [
+            { id: 1, name: "佐藤 健", age: 28, city: "東京" },
+            { id: 2, name: "田中 友美", age: 34, city: "大阪" },
+            { id: 3, name: "鈴木 一郎", age: 45, city: "名古屋" },
+            { id: 4, name: "高橋 恵", age: 22, city: "横浜" }
+        ];
+
+        const initialOrders = [
+            { order_id: 101, user_id: 1, item: "ノートPC", price: 120000 },
+            { order_id: 102, user_id: 2, item: "ワイヤレスイヤホン", price: 15000 },
+            { order_id: 103, user_id: 1, item: "マウス", price: 4000 },
+            { order_id: 104, user_id: 3, item: "4Kモニター", price: 45000 }
+        ];
+
+        let usersData = JSON.parse(JSON.stringify(initialUsers));
+        let ordersData = JSON.parse(JSON.stringify(initialOrders));
+
+        // Navigation Tab Switcher
+        function switchTab(tabId) {
+            const tabs = ['basics', 'sql', 'index', 'transaction', 'quiz'];
+            tabs.forEach(t => {
+                document.getElementById(`sec-${t}`).classList.add('hidden');
+                document.getElementById(`tab-${t}`).classList.remove('bg-sky-600', 'text-white');
+                document.getElementById(`tab-${t}`).classList.add('text-slate-300');
+            });
+
+            document.getElementById(`sec-${tabId}`).classList.remove('hidden');
+            document.getElementById(`tab-${tabId}`).classList.add('bg-sky-600', 'text-white');
+            document.getElementById(`tab-${tabId}`).classList.remove('text-slate-300');
+        }
+
+        // ================= SECTION 1: BASICS LOGIC =================
+        function renderBasicsTables(highlightUserId = null) {
+            // Render Users Table
+            const usersTbody = document.getElementById('basics-users-tbody');
+            usersTbody.innerHTML = usersData.map(u => {
+                const isSelected = highlightUserId === u.id;
+                return `
+                    <tr class="transition-colors ${isSelected ? 'bg-sky-100/80 font-bold' : 'hover:bg-slate-50'}">
+                        <td class="p-2.5 font-mono text-sky-700 font-semibold">${u.id}</td>
+                        <td class="p-2.5">${u.name}</td>
+                        <td class="p-2.5">${u.age}</td>
+                        <td class="p-2.5">${u.city}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            // Render Orders Table
+            const ordersTbody = document.getElementById('basics-orders-tbody');
+            ordersTbody.innerHTML = ordersData.map(o => {
+                const isSelected = highlightUserId === o.user_id;
+                return `
+                    <tr class="transition-colors ${isSelected ? 'bg-emerald-100/80 font-bold' : 'hover:bg-slate-50'}">
+                        <td class="p-2.5 font-mono text-emerald-700 font-semibold">${o.order_id}</td>
+                        <td class="p-2.5 font-mono text-sky-700 font-semibold">${o.user_id}</td>
+                        <td class="p-2.5">${o.item}</td>
+                        <td class="p-2.5">¥${o.price.toLocaleString()}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            // Render Interactive Explorer Buttons
+            const btnContainer = document.getElementById('user-select-buttons');
+            btnContainer.innerHTML = usersData.map(u => `
+                <button onclick="renderBasicsTables(${u.id})" class="px-3 py-1.5 rounded-lg text-xs font-medium transition ${highlightUserId === u.id ? 'bg-sky-400 text-slate-950 font-bold' : 'bg-slate-800 hover:bg-slate-700 text-slate-200'}">
+                    <i class="fa-solid fa-user text-[10px] mr-1"></i> ID ${u.id}: ${u.name} の注文を見る
+                </button>
+            `).join('') + `
+                <button onclick="renderBasicsTables(null)" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-400">
+                    ハイライト解除
+                </button>
+            `;
+        }
+
+        // ================= SECTION 2: SQL SIMULATOR LOGIC =================
+        function setSQL(query) {
+            document.getElementById('sql-input').value = query;
+        }
+
+        function resetSQLData() {
+            usersData = JSON.parse(JSON.stringify(initialUsers));
+            ordersData = JSON.parse(JSON.stringify(initialOrders));
+            setSQL('SELECT * FROM users;');
+            executeSQL();
+            renderBasicsTables();
+        }
+
+        function executeSQL() {
+            const query = document.getElementById('sql-input').value.trim();
+            const msgBox = document.getElementById('sql-message');
+            const msgIcon = document.getElementById('sql-message-icon');
+            const msgText = document.getElementById('sql-message-text');
+            const statusBadge = document.getElementById('sql-status-badge');
+
+            msgBox.classList.remove('hidden', 'bg-emerald-50', 'text-emerald-800', 'bg-rose-50', 'text-rose-800', 'bg-sky-50', 'text-sky-800');
+            
+            try {
+                // Normalize query
+                const qUpper = query.toUpperCase();
+
+                if (qUpper.startsWith('SELECT') && qUpper.includes('JOIN')) {
+                    // JOIN SELECT query simulation
+                    const result = [];
+                    ordersData.forEach(o => {
+                        const user = usersData.find(u => u.id === o.user_id);
+                        if (user) {
+                            result.push({
+                                name: user.name,
+                                item: o.item,
+                                price: '¥' + o.price.toLocaleString()
+                            });
+                        }
+                    });
+                    renderSQLResultTable(['name (氏名)', 'item (商品名)', 'price (価格)'], result);
+                    showSQLMsg('success', `テーブルの結合 (JOIN) に成功しました。${result.length} 件のレコードを表示しています。`);
+                } 
+                else if (qUpper.startsWith('SELECT')) {
+                    // Basic SELECT query
+                    let res = [...usersData];
+                    
+                    if (qUpper.includes('WHERE AGE >= 30')) {
+                        res = res.filter(u => u.age >= 30);
+                    } else if (qUpper.includes('WHERE ID =')) {
+                        const match = query.match(/id\s*=\s*(\d+)/i);
+                        if (match) {
+                            const targetId = parseInt(match[1]);
+                            res = res.filter(u => u.id === targetId);
+                        }
+                    }
+
+                    const formatted = res.map(u => ({
+                        id: u.id,
+                        name: u.name,
+                        age: u.age,
+                        city: u.city
+                    }));
+                    renderSQLResultTable(['id', 'name', 'age', 'city'], formatted);
+                    showSQLMsg('success', `SELECT クエリが正常に実行されました（${formatted.length} 件取得）。`);
+                } 
+                else if (qUpper.startsWith('INSERT')) {
+                    // INSERT INTO users VALUES (5, '健太', 22, '福岡');
+                    const match = query.match(/VALUES\s*\(\s*(\d+)\s*,\s*['"]([^'"]+)['"]\s*,\s*(\d+)\s*,\s*['"]([^'"]+)['"]\s*\)/i);
+                    if (match) {
+                        const newId = parseInt(match[1]);
+                        if (usersData.some(u => u.id === newId)) {
+                            throw new Error(`主キー制約エラー: ID ${newId} は既に存在します（PKの重複は不可）。`);
+                        }
+                        usersData.push({
+                            id: newId,
+                            name: match[2],
+                            age: parseInt(match[3]),
+                            city: match[4]
+                        });
+                        renderSQLResultTable(['id', 'name', 'age', 'city'], usersData);
+                        renderBasicsTables();
+                        showSQLMsg('success', `INSERT成功: 新規ユーザー「${match[2]}」が追加されました。`);
+                    } else {
+                        throw new Error("INSERT構文エラー。形式: INSERT INTO users VALUES (5, '名前', 20, '都市');");
+                    }
+                } 
+                else if (qUpper.startsWith('UPDATE')) {
+                    // UPDATE users SET city = '東京' WHERE id = 2;
+                    const match = query.match(/SET\s+city\s*=\s*['"]([^'"]+)['"]\s+WHERE\s+id\s*=\s*(\d+)/i);
+                    if (match) {
+                        const newCity = match[1];
+                        const targetId = parseInt(match[2]);
+                        const target = usersData.find(u => u.id === targetId);
+                        if (target) {
+                            target.city = newCity;
+                            renderSQLResultTable(['id', 'name', 'age', 'city'], usersData);
+                            renderBasicsTables();
+                            showSQLMsg('success', `UPDATE成功: ID ${targetId} の都市を「${newCity}」に更新しました。`);
+                        } else {
+                            showSQLMsg('info', `更新対象のID ${targetId} が見つかりませんでした。`);
+                        }
+                    } else {
+                        throw new Error("UPDATE構文エラー。形式: UPDATE users SET city = '都市' WHERE id = 1;");
+                    }
+                } 
+                else if (qUpper.startsWith('DELETE')) {
+                    // DELETE FROM users WHERE id = 4;
+                    const match = query.match(/WHERE\s+id\s*=\s*(\d+)/i);
+                    if (match) {
+                        const targetId = parseInt(match[1]);
+                        const initialLen = usersData.length;
+                        usersData = usersData.filter(u => u.id !== targetId);
+                        
+                        renderSQLResultTable(['id', 'name', 'age', 'city'], usersData);
+                        renderBasicsTables();
+                        if (usersData.length < initialLen) {
+                            showSQLMsg('success', `DELETE成功: ID ${targetId} のレコードを削除しました。`);
+                        } else {
+                            showSQLMsg('info', `削除対象のID ${targetId} が見つかりませんでした。`);
+                        }
+                    } else {
+                        throw new Error("DELETE構文エラー。形式: DELETE FROM users WHERE id = 1;");
+                    }
+                } else {
+                    throw new Error("未対応または無効なSQL構文です。SELECT, INSERT, UPDATE, DELETE を試してください。");
+                }
+            } catch (err) {
+                showSQLMsg('error', err.message);
+            }
+        }
+
+        function showSQLMsg(type, text) {
+            const msgBox = document.getElementById('sql-message');
+            const msgIcon = document.getElementById('sql-message-icon');
+            const msgText = document.getElementById('sql-message-text');
+            const statusBadge = document.getElementById('sql-status-badge');
+
+            msgBox.classList.remove('hidden');
+            msgText.innerText = text;
+
+            if (type === 'success') {
+                msgBox.classList.add('bg-emerald-50', 'text-emerald-800');
+                msgIcon.className = "fa-solid fa-circle-check text-emerald-600";
+                statusBadge.className = "text-xs bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full font-medium";
+                statusBadge.innerText = "実行完了";
+            } else if (type === 'error') {
+                msgBox.classList.add('bg-rose-50', 'text-rose-800');
+                msgIcon.className = "fa-solid fa-circle-exclamation text-rose-600";
+                statusBadge.className = "text-xs bg-rose-100 text-rose-800 px-2.5 py-1 rounded-full font-medium";
+                statusBadge.innerText = "エラー発生";
+            } else {
+                msgBox.classList.add('bg-sky-50', 'text-sky-800');
+                msgIcon.className = "fa-solid fa-info-circle text-sky-600";
+                statusBadge.className = "text-xs bg-sky-100 text-sky-800 px-2.5 py-1 rounded-full font-medium";
+                statusBadge.innerText = "通知";
+            }
+        }
+
+        function renderSQLResultTable(headers, rows) {
+            const thead = document.getElementById('sql-result-thead');
+            const tbody = document.getElementById('sql-result-tbody');
+
+            thead.innerHTML = `
+                <tr>
+                    ${headers.map(h => `<th class="p-2.5 font-semibold">${h}</th>`).join('')}
+                </tr>
+            `;
+
+            if (rows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="${headers.length}" class="p-4 text-center text-slate-400">該当するデータが存在しません</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = rows.map(r => `
+                <tr class="hover:bg-slate-50 transition">
+                    ${Object.values(r).map(val => `<td class="p-2.5">${val}</td>`).join('')}
+                </tr>
+            `).join('');
+        }
+
+
+        // ================= SECTION 3: INDEX SEARCH LOGIC =================
+        function initIndexSection() {
+            const select = document.getElementById('index-search-id');
+            select.innerHTML = '';
+            for (let i = 1; i <= 15; i++) {
+                select.innerHTML += `<option value="${i}">ID: ${i}</option>`;
+            }
+
+            const grid = document.getElementById('data-blocks-grid');
+            grid.innerHTML = '';
+            for (let i = 1; i <= 15; i++) {
+                grid.innerHTML += `
+                    <div id="data-node-${i}" class="border border-slate-200 bg-slate-50 p-3 rounded-xl text-center transition-all">
+                        <span class="text-[10px] text-slate-400 block font-mono">Row #${i}</span>
+                        <span class="text-xs font-bold text-slate-700 block font-mono">ID: ${i}</span>
+                    </div>
+                `;
+            }
+        }
+
+        let isSearching = false;
+
+        async function startSearch(mode) {
+            if (isSearching) return;
+            isSearching = true;
+
+            const targetId = parseInt(document.getElementById('index-search-id').value);
+            const countFullEl = document.getElementById('count-full');
+            const countIndexEl = document.getElementById('count-index');
+            const treeView = document.getElementById('index-tree-view');
+
+            // Reset visual states
+            for (let i = 1; i <= 15; i++) {
+                const node = document.getElementById(`data-node-${i}`);
+                node.className = "border border-slate-200 bg-slate-50 p-3 rounded-xl text-center transition-all";
+            }
+            ['8', '4', '12'].forEach(id => {
+                const tNode = document.getElementById(`tree-node-${id}`);
+                if (tNode) tNode.className = "border-2 border-slate-700 bg-slate-800 px-3 py-1 rounded-lg transition-all text-xs font-mono";
+            });
+
+            if (mode === 'full') {
+                treeView.classList.add('hidden');
+                let steps = 0;
+                for (let i = 1; i <= targetId; i++) {
+                    steps++;
+                    countFullEl.innerText = steps;
+                    const node = document.getElementById(`data-node-${i}`);
+                    node.classList.add('scanning');
+                    await new Promise(r => setTimeout(r, 200));
+                    node.classList.remove('scanning');
+
+                    if (i === targetId) {
+                        node.classList.add('found-node');
+                        break;
+                    }
+                }
+            } else {
+                // Index (B-Tree) search simulation
+                treeView.classList.remove('hidden');
+                let steps = 0;
+
+                // Step 1: Root Node (8)
+                steps++;
+                countIndexEl.innerText = steps;
+                const root = document.getElementById('tree-node-8');
+                root.classList.add('scanning');
+                await new Promise(r => setTimeout(r, 500));
+                root.classList.remove('scanning');
+
+                if (targetId === 8) {
+                    root.classList.add('found-node');
+                    document.getElementById(`data-node-8`).classList.add('found-node');
+                } else if (targetId < 8) {
+                    // Left branch -> Node 4
+                    steps++;
+                    countIndexEl.innerText = steps;
+                    const node4 = document.getElementById('tree-node-4');
+                    node4.classList.add('scanning');
+                    await new Promise(r => setTimeout(r, 500));
+                    node4.classList.remove('scanning');
+
+                    if (targetId === 4) {
+                        node4.classList.add('found-node');
+                        document.getElementById(`data-node-4`).classList.add('found-node');
+                    } else {
+                        // Directly access leaf block
+                        steps++;
+                        countIndexEl.innerText = steps;
+                        await new Promise(r => setTimeout(r, 300));
+                        document.getElementById(`data-node-${targetId}`).classList.add('found-node');
+                    }
+                } else {
+                    // Right branch -> Node 12
+                    steps++;
+                    countIndexEl.innerText = steps;
+                    const node12 = document.getElementById('tree-node-12');
+                    node12.classList.add('scanning');
+                    await new Promise(r => setTimeout(r, 500));
+                    node12.classList.remove('scanning');
+
+                    if (targetId === 12) {
+                        node12.classList.add('found-node');
+                        document.getElementById(`data-node-12`).classList.add('found-node');
+                    } else {
+                        // Directly access leaf block
+                        steps++;
+                        countIndexEl.innerText = steps;
+                        await new Promise(r => setTimeout(r, 300));
+                        document.getElementById(`data-node-${targetId}`).classList.add('found-node');
+                    }
+                }
+            }
+
+            isSearching = false;
+        }
+
+
+        // ================= SECTION 4: TRANSACTIONS LOGIC =================
+        let accA = 10000;
+        let accB = 5000;
+        let tempA = accA;
+        let tempB = accB;
+        let txStepState = 0;
+
+        function updateTxUI() {
+            document.getElementById('account-a-balance').innerText = `¥${tempA.toLocaleString()}`;
+            document.getElementById('account-b-balance').innerText = `¥${tempB.toLocaleString()}`;
+        }
+
+        function appendTxLog(text) {
+            const log = document.getElementById('tx-log');
+            log.innerHTML += `<div>> ${text}</div>`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function txBegin() {
+            txStepState = 1;
+            tempA = accA;
+            tempB = accB;
+            document.getElementById('tx-log').innerHTML = '';
+            appendTxLog("BEGIN TRANSACTION; -- トランザクション開始");
+            
+            document.getElementById('tx-status-tag').className = "text-xs bg-amber-500 text-slate-950 font-bold px-2.5 py-1 rounded-full animate-pulse";
+            document.getElementById('tx-status-tag').innerText = "トランザクション処理中";
+
+            document.getElementById('btn-tx-begin').disabled = true;
+            document.getElementById('btn-tx-step1').disabled = false;
+            document.getElementById('btn-tx-step1').classList.remove('opacity-50', 'bg-slate-700');
+            document.getElementById('btn-tx-step1').classList.add('bg-sky-600', 'hover:bg-sky-500');
+            document.getElementById('btn-tx-rollback').disabled = false;
+            document.getElementById('btn-tx-rollback').classList.remove('opacity-50');
+        }
+
+        function txStep1() {
+            if (txStepState !== 1) return;
+            txStepState = 2;
+            tempA -= 3000;
+            updateTxUI();
+            appendTxLog("UPDATE accounts SET balance = balance - 3000 WHERE name = '山田';");
+
+            document.getElementById('btn-tx-step1').disabled = true;
+            document.getElementById('btn-tx-step1').classList.add('opacity-50');
+            
+            document.getElementById('btn-tx-step2').disabled = false;
+            document.getElementById('btn-tx-step2').classList.remove('opacity-50', 'bg-slate-700');
+            document.getElementById('btn-tx-step2').classList.add('bg-sky-600', 'hover:bg-sky-500');
+        }
+
+        function txStep2() {
+            if (txStepState !== 2) return;
+            txStepState = 3;
+            tempB += 3000;
+            updateTxUI();
+            appendTxLog("UPDATE accounts SET balance = balance + 3000 WHERE name = '佐藤';");
+
+            document.getElementById('btn-tx-step2').disabled = true;
+            document.getElementById('btn-tx-step2').classList.add('opacity-50');
+
+            document.getElementById('btn-tx-commit').disabled = false;
+            document.getElementById('btn-tx-commit').classList.remove('opacity-50');
+        }
+
+        function txCommit() {
+            accA = tempA;
+            accB = tempB;
+            appendTxLog("COMMIT; -- 変更をデータベースに永続反映完了！");
+            
+            document.getElementById('tx-status-tag').className = "text-xs bg-emerald-500 text-white font-bold px-2.5 py-1 rounded-full";
+            document.getElementById('tx-status-tag').innerText = "COMMIT 成功";
+
+            resetTxButtons();
+        }
+
+        function txRollback() {
+            tempA = accA;
+            tempB = accB;
+            updateTxUI();
+            appendTxLog("ROLLBACK; -- 処理を取り消し、開始前の状態に復元しました。");
+
+            document.getElementById('tx-status-tag').className = "text-xs bg-rose-500 text-white font-bold px-2.5 py-1 rounded-full";
+            document.getElementById('tx-status-tag').innerText = "ROLLBACK 完了";
+
+            resetTxButtons();
+        }
+
+        function txReset() {
+            accA = 10000;
+            accB = 5000;
+            tempA = accA;
+            tempB = accB;
+            txStepState = 0;
+            updateTxUI();
+
+            const log = document.getElementById('tx-log');
+            log.innerHTML = '<div class="text-slate-500">// トランザクションを開始してください...</div>';
+
+            document.getElementById('tx-status-tag').className = "text-xs bg-slate-800 text-slate-300 px-2.5 py-1 rounded-full";
+            document.getElementById('tx-status-tag').innerText = "未開始";
+
+            resetTxButtons();
+        }
+
+        function resetTxButtons() {
+            document.getElementById('btn-tx-begin').disabled = false;
+            document.getElementById('btn-tx-step1').disabled = true;
+            document.getElementById('btn-tx-step2').disabled = true;
+            document.getElementById('btn-tx-commit').disabled = true;
+            document.getElementById('btn-tx-rollback').disabled = true;
+
+            document.getElementById('btn-tx-step1').className = "bg-slate-700 opacity-50 text-white text-xs sm:text-sm font-medium px-4 py-2 rounded-xl transition";
+            document.getElementById('btn-tx-step2').className = "bg-slate-700 opacity-50 text-white text-xs sm:text-sm font-medium px-4 py-2 rounded-xl transition";
+        }
+
+
+        // ================= SECTION 5: QUIZ LOGIC =================
+        const quizData = [
+            {
+                q: "テーブル内の各行（レコード）を一意に識別するための重複しない識別子を何と呼びますか？",
+                options: ["外部キー (FK)", "主キー (PK)", "インデックス", "トランザクション"],
+                ans: 1,
+                explain: "主キー（Primary Key）は各行を特定するための唯一無二のIDです。"
+            },
+            {
+                q: "データベースから条件に合うデータを取得（検索）するためのSQL命令はどれですか？",
+                options: ["INSERT", "UPDATE", "SELECT", "DELETE"],
+                ans: 2,
+                explain: "データの取得には SELECT 文を使用します。"
+            },
+            {
+                q: "大量のデータから高速に検索を行うために作成する『辞書の索引』のような仕組みはどれですか？",
+                options: ["インデックス (Index)", "ビュー (View)", "スキーマ (Schema)", "制約 (Constraint)"],
+                ans: 0,
+                explain: "インデックスを作成することで全件走査（フルスキャン）を避け、検索速度を大幅に向上させます。"
+            },
+            {
+                q: "複数の処理をまとめて「すべて成功」か「すべて取消」のどちらかとして扱う単位を何と呼びますか？",
+                options: ["リレーション", "クエリ", "トランザクション", "ジョイン"],
+                ans: 2,
+                explain: "トランザクション処理により、送金途中でのエラーなどによるデータの不整合を防ぎます。"
+            },
+            {
+                q: "トランザクション処理が持つべき4つの性質（Atomicity, Consistency, Isolation, Durability）の総称は？",
+                options: ["CRUD特性", "ACID特性", "REST特性", "BASE特性"],
+                ans: 1,
+                explain: "ACID（アシッド）特性は信頼性の高いデータベース管理のための4原則です。"
+            }
+        ];
+
+        function renderQuiz() {
+            const container = document.getElementById('quiz-container');
+            container.innerHTML = quizData.map((item, idx) => `
+                <div class="border-b border-slate-200 pb-6 last:border-b-0 space-y-3">
+                    <h4 class="font-bold text-slate-800 text-sm sm:text-base">
+                        Q${idx + 1}. ${item.q}
+                    </h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        ${item.options.map((opt, oIdx) => `
+                            <button onclick="checkAnswer(${idx}, ${oIdx})" id="quiz-btn-${idx}-${oIdx}" class="text-left p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-sky-50 hover:border-sky-300 transition text-xs sm:text-sm font-medium text-slate-700">
+                                ${opt}
+                            </button>
+                        `).join('')}
+                    </div>
+                    <div id="quiz-explain-${idx}" class="hidden p-3 rounded-xl text-xs sm:text-sm bg-slate-100 mt-2"></div>
+                </div>
+            `).join('');
+        }
+
+        function checkAnswer(qIdx, selectedOptIdx) {
+            const item = quizData[qIdx];
+            const explainEl = document.getElementById(`quiz-explain-${qIdx}`);
+
+            for (let i = 0; i < item.options.length; i++) {
+                const btn = document.getElementById(`quiz-btn-${qIdx}-${i}`);
+                btn.disabled = true;
+                if (i === item.ans) {
+                    btn.className = "text-left p-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 text-emerald-900 font-bold text-xs sm:text-sm";
+                } else if (i === selectedOptIdx) {
+                    btn.className = "text-left p-3 rounded-xl border-2 border-rose-500 bg-rose-50 text-rose-900 text-xs sm:text-sm";
+                } else {
+                    btn.className = "text-left p-3 rounded-xl border border-slate-200 bg-slate-50 opacity-50 text-xs sm:text-sm";
+                }
+            }
+
+            explainEl.classList.remove('hidden');
+            if (selectedOptIdx === item.ans) {
+                explainEl.className = "p-3 rounded-xl text-xs sm:text-sm bg-emerald-100 text-emerald-900 font-medium";
+                explainEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600 mr-1"></i> <strong>正解！</strong> ${item.explain}`;
+            } else {
+                explainEl.className = "p-3 rounded-xl text-xs sm:text-sm bg-rose-100 text-rose-900 font-medium";
+                explainEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-600 mr-1"></i> <strong>不正解...</strong> ${item.explain}`;
+            }
+        }
+
+
+        // ================= APP INITIALIZATION =================
+        window.onload = function() {
+            switchTab('basics');
+            renderBasicsTables();
+            setSQL('SELECT * FROM users;');
+            executeSQL();
+            initIndexSection();
+            renderQuiz();
+        };
+    </script>
+</body>
+</html>
